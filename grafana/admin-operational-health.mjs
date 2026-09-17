@@ -82,7 +82,14 @@ function alert(uid, title, expr, threshold, severity, summary, description, pane
     noDataState, execErrState: 'Error', for: duration, keep_firing_for: '5m',
     annotations: { __dashboardUid__: dashboardUid, __panelId__: String(panelId), summary, description },
     labels: { environment: 'production', service: 'dropleather-admin', severity, team: 'authentication' },
-    isPaused: false, notification_settings: { receiver: 'Owner' },
+    isPaused: false,
+    notification_settings: {
+      receiver: 'Owner',
+      group_by: ['alertname', 'environment', 'service', 'severity'],
+      group_wait: '30s',
+      group_interval: '5m',
+      repeat_interval: '4h',
+    },
   }
 }
 

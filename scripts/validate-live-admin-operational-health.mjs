@@ -27,11 +27,28 @@ const heartbeat = queryResults.find(result => result.panelId === 2)
 if (!heartbeat || heartbeat.series < 1) throw new Error('Production admin heartbeat is not ingested')
 const rules = await json('/api/v1/provisioning/alert-rules')
 const adminRules = rules.filter(rule => rule.ruleGroup === 'admin-operational')
-if (adminRules.length !== 6 || adminRules.some(rule => rule.isPaused)) throw new Error('Admin alert rule publication mismatch')
+if (adminRules.length !== 6 || adminRules.some(rule => {
+  const settings = rule.notification_settings
+  return rule.isPaused
+    || settings?.receiver !== 'Owner'
+    || settings?.group_by?.join(',') !== 'alertname,environment,service,severity'
+    || settings?.group_wait !== '30s'
+    || settings?.group_interval !== '5m'
+    || settings?.repeat_interval !== '4h'
+})) throw new Error('Admin alert rule publication or routing mismatch')
 
 console.log(JSON.stringify({
   dashboard: saved.meta.url,
   dashboardVersion: saved.meta.version,
   panelQueries: queryResults,
-  alertRules: adminRules.map(rule => ({ uid: rule.uid, title: rule.title, noDataState: rule.noDataState, receiver: rule.notification_settings?.receiver })),
+  alertRules: adminRules.map(rule => ({
+    uid: rule.uid,
+    title: rule.title,
+    noDataState: rule.noDataState,
+    receiver: rule.notification_settings?.receiver,
+    groupBy: rule.notification_settings?.group_by,
+    groupWait: rule.notification_settings?.group_wait,
+    groupInterval: rule.notification_settings?.group_interval,
+    repeatInterval: rule.notification_settings?.repeat_interval,
+  })),
 }))
