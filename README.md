@@ -56,6 +56,35 @@ the manual 2-of-3 unseal procedure. Do not put unseal shares or tokens into
 Grafana. The probe's data may remain in the collector briefly if the probe
 itself stops; missing-data detection occurs after that cached series expires.
 
+## Production order-email alerts
+
+Four rules in `grafana/order-email-alerts.mjs` monitor the Supabase outbox →
+QStash → signed Railway API → Resend path. They run in the `DropLeather API`
+folder's `order-email-operational` group every 60 seconds, route to the
+existing `Owner` contact point, and use `Error` on query errors and `Alerting`
+on No Data. Publish missing rules with an owner-only Grafana API token file:
+
+```sh
+GRAFANA_TOKEN_FILE=/path/to/owner-only-token node scripts/publish-order-email-alerts.mjs
+```
+
+| Rule | PromQL source and condition | For | Severity | Operator response |
+|------|-----------------------------|-----|----------|-------------------|
+| DropLeather Order Email — Backlog Age | `order_email_outbox_oldest_actionable_age_seconds > 600`, selected from the freshest leased observer and rejected when its observation is older than 180 seconds | 5m | high | Inspect the outbox, dispatcher, and QStash delivery. Check idempotency before any manual resend. |
+| DropLeather Order Email — Failed Jobs | `sum(order_email_outbox_failed_count) > 0`, selected from the freshest leased observer with the same freshness guard | 2m | high | Inspect the `reason` series and row. `send_outcome_unknown` may already have reached Resend; verify provider outcome before retrying. |
+| DropLeather Order Email — Sustained Send Failures | `sum(increase(order_email_send_total{outcome="retryable_failure"}[10m])) >= 3` | 5m | high | Check Resend availability/rate limits, API logs, and QStash retries. A single failure does not alert. |
+| DropLeather Order Email — Invalid QStash Signatures | `sum(increase(order_email_qstash_signature_failure_total[5m])) >= 3` | 2m | warning | Inspect endpoint security logs and signing-key configuration. One stray rejection does not alert. |
+
+All queries filter `service_name="dropleather-api-railway-candidate"`. The
+backlog and failed-job rules use the newest `order_email_outbox_observation_timestamp_seconds`
+sample; a stale or absent sample becomes No Data and alerts. The complete
+PromQL is versioned in `grafana/order-email-alerts.mjs`. The signature rule
+adds a sustained Grafana signal alongside the application's per-event Sentry
+alarm. No QStash DLQ alert exists because there is no order-email-specific
+Prometheus DLQ metric; inspect the QStash console/API manually. `sent` means
+Resend accepted the API request, not confirmed inbox delivery. Do not trigger
+these rules by creating fake production orders or emails.
+
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/8TLSQD?referralCode=IFlm92)
 
 ## What is this template
