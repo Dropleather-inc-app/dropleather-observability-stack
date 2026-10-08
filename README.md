@@ -1,5 +1,64 @@
 # Grafana Stack on Railway
 
+## Background jobs and delivery dashboard
+
+`grafana/background-jobs-dashboard.mjs` defines the production dashboard
+**DropLeather — Background Jobs & Delivery** in the `DropLeather API` folder.
+It uses `grafana_prometheus` and is published through the Grafana API (the
+repository does not provision dashboards on Grafana startup):
+
+```sh
+node scripts/validate-background-jobs-dashboard.mjs
+GRAFANA_TOKEN_FILE=/path/to/owner-only-token node scripts/publish-background-jobs-dashboard.mjs
+```
+
+The dashboard selects the newest lease-owner database observation and rejects
+outbox samples older than three minutes. Global actionable backlog excludes
+order-status connection-blocked and superseded rows. Other outbox `pending`
+counts include scheduled retries that still require eventual processing.
+Current terminal failures combine authoritative order-status, order-email,
+and WooCommerce recovery counts. The v3 database observer currently exports
+zero for other outboxes' exhausted counts, so that aggregate is explicitly
+**known failures**, not a claim that every queue has no dead letters.
+
+| Production async subsystem | Execution and durable state | Dashboard signal |
+|---|---|---|
+| Order email | 15-second API sweep, Supabase outbox, QStash signed consumer, Resend | Pending/age/failure gauges, publish/send/signature counters, consumer HTTP outcomes |
+| Order status | Supabase transactional outbox, Realtime wake, 60-second locked sweep | Runnable, blocked, superseded, current/historical exhausted classifications |
+| Domain events | Supabase outbox, Realtime wake, 15-second locked sweep | Pending/age, observation freshness, dispatch outcomes |
+| Sync / WooCommerce legacy export and recovery | Supabase sync and recovery outboxes; leased drain | Sync pending/age and WooCommerce connection/recovery gauges |
+| WooCommerce polling and webhook jobs | QStash signed API consumers; polling enabled in production | Poll queue ratio and internal consumer HTTP outcomes |
+| Shopify order processing | Webhook → QStash signed API consumer | Internal consumer HTTP outcomes; no authoritative backlog gauge |
+| Stripe order processing | Webhook → QStash signed consumer, synchronous fallback | Internal consumer HTTP outcomes; no QStash-specific DLQ metric |
+| Billing and payment reconciliation | QStash schedules plus Redis-locked API jobs and Supabase tracking | Internal endpoint HTTP outcomes, locked-job run/last-success, payment attempt sweep count |
+| Shopify retry/inventory, order expiry, dead-letter retry, VAT and retention/cleanup jobs | In-process timers with distributed Redis locks | Locked-job run/last-success metrics |
+| eBay timers | Disabled in production (`EBAY_ENABLED=false`) | Excluded; enabled eBay endpoint traffic can still appear in internal HTTP outcomes |
+
+The canonical WooCommerce export and order-sync-v1 drains are disabled in the
+current production variables (`WC_EXPORT_ENGINE` defaults to `legacy-sync-v1`;
+`WC_ORDER_SYNC_PIPELINE_V1_ENABLED` is unset). Their database observer still
+emits gauges, but the dashboard excludes those queues from active backlog and
+worker freshness rather than presenting dormant tables as live workers.
+
+The shared cron-lock instrumentation emits `background_job_run_total{task_name,outcome}`
+and `background_job_last_success_timestamp_seconds{task_name}`. The `task_name` label is
+restricted to code-owned, bounded names. A skipped lock is not a completed
+run. A missing last-success series means no success has been observed since
+the metric was introduced; it is not plotted as a fabricated zero. The
+dashboard's 15-minute zeroes for event counters mean no observed event in
+that window and do not prove the worker is running.
+
+Existing alerts cover order-email backlog/failures/send retries/signatures,
+outbox pending/age/status exhaustion/observation staleness, API failures, and
+Vault availability. Dashboard links lead to the alert list. No new alert is
+created here. QStash's order-email-specific DLQ remains a manual QStash
+console/API check because no authoritative Prometheus metric exists. Resend
+`sent` means its API accepted a request, not inbox delivery or bounce status.
+Scheduled QStash jobs and Shopify consumers still lack an authoritative
+QStash backlog/last-delivery signal; their HTTP counters show observed calls
+only. Add provider-side telemetry before asserting that a quiet schedule is
+healthy.
+
 ## Production Vault health signal
 
 Vault is in the `Dropleather | API` Railway project, while Prometheus and
