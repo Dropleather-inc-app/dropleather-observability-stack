@@ -83,6 +83,18 @@ function panel(id, title, type, x, y, w, h, expr, unit = 'short', legend = '__au
 const row = (id, title, y) => ({ id, title, type: 'row', collapsed: false, gridPos: { x: 0, y, w: 24, h: 1 }, panels: [] })
 const stat = (id, title, x, y, w, expr, unit = 'short') => panel(id, title, 'stat', x, y, w, 5, expr, unit)
 const line = (id, title, x, y, w, expr, legend, unit = 'short') => panel(id, title, 'timeseries', x, y, w, 7, expr, unit, legend)
+const firingAlerts = {
+  id: 6, title: 'High / critical async alerts firing', type: 'alertlist',
+  gridPos: { x: 20, y: 1, w: 4, h: 5 },
+  options: {
+    alertInstanceLabelFilter: '{component=~"outbox|order_email",environment="production",severity=~"high|critical"}',
+    dashboardAlerts: false, datasource: 'grafana', groupMode: 'default', maxItems: 10,
+    showInactiveAlerts: false, showInstances: false, sortOrder: 3,
+    statColorMode: 'value', statThresholds: { mode: 'absolute', steps: [{ color: 'green', value: null }, { color: 'red', value: 1 }] },
+    statValueMappings: [], stateFilter: { error: true, firing: true, noData: true, normal: false, pending: false, recovering: false },
+    viewMode: 'stat',
+  },
+}
 
 export const dashboard = {
   uid: 'dropleather-background-jobs', title: 'DropLeather — Background Jobs & Delivery',
@@ -92,10 +104,11 @@ export const dashboard = {
   links: [{ title: 'Production alerts', type: 'link', url: '/alerting/list?view=list', targetBlank: true }],
   panels: [
     row(1, 'Global async health — actionable work only', 0),
-    stat(2, 'Actionable backlog', 0, 1, 6, queries.globalBacklog),
-    stat(3, 'Oldest actionable age', 6, 1, 6, queries.globalAge, 's'),
-    stat(4, 'Known terminal / uncertain failures', 12, 1, 6, queries.globalFailures),
-    stat(5, 'Connection-blocked status work', 18, 1, 6, queries.globalBlocked),
+    stat(2, 'Actionable backlog', 0, 1, 5, queries.globalBacklog),
+    stat(3, 'Oldest actionable age', 5, 1, 5, queries.globalAge, 's'),
+    stat(4, 'Known terminal / uncertain failures', 10, 1, 5, queries.globalFailures),
+    stat(5, 'Connection-blocked status work', 15, 1, 5, queries.globalBlocked),
+    firingAlerts,
     row(10, 'Backlog by subsystem', 6),
     panel(11, 'Actionable backlog by outbox', 'bargauge', 0, 7, 24, 7, queries.backlog, 'short', '{{outbox_type}}'),
     row(20, 'Oldest actionable age', 14),

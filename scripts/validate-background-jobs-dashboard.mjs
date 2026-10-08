@@ -3,9 +3,11 @@ import { dashboard, queries } from '../grafana/background-jobs-dashboard.mjs'
 if (dashboard.title !== 'DropLeather — Background Jobs & Delivery') throw new Error('Unexpected dashboard title')
 if (dashboard.uid !== 'dropleather-background-jobs') throw new Error('Unexpected dashboard UID')
 const panels = dashboard.panels.filter(panel => panel.type !== 'row')
+const metricPanels = panels.filter(panel => panel.type !== 'alertlist')
 if (panels.length < 25) throw new Error('Incomplete background processing coverage')
 if (new Set(dashboard.panels.map(panel => panel.id)).size !== dashboard.panels.length) throw new Error('Duplicate panel ID')
-for (const panel of panels) {
+if (panels.filter(panel => panel.type === 'alertlist').length !== 1) throw new Error('Async alert-state stat missing')
+for (const panel of metricPanels) {
   if (panel.datasource?.uid !== 'grafana_prometheus' || panel.targets?.length !== 1) throw new Error(`Invalid datasource: ${panel.title}`)
   if (panel.fieldConfig?.defaults?.noValue !== 'NO DATA') throw new Error(`Missing-data rendering is misleading: ${panel.title}`)
   if (panel.gridPos.x < 0 || panel.gridPos.x + panel.gridPos.w > 24) throw new Error(`Invalid layout: ${panel.title}`)

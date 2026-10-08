@@ -52,7 +52,9 @@ that window and do not prove the worker is running.
 
 Existing alerts cover order-email backlog/failures/send retries/signatures,
 outbox pending/age/status exhaustion/observation staleness, API failures, and
-Vault availability. Dashboard links lead to the alert list. No new alert is
+Vault availability. The global row shows a Grafana-native stat for currently
+firing/error/no-data high or critical outbox and order-email alerts; dashboard
+links lead to the full alert list. No new alert is
 created here. QStash's order-email-specific DLQ remains a manual QStash
 console/API check because no authoritative Prometheus metric exists. Resend
 `sent` means its API accepted a request, not inbox delivery or bounce status.
