@@ -38,8 +38,23 @@ receiver also exports `httpcheck_error` and
 `httpcheck_duration_milliseconds` for diagnosis. An absent gauge means the probe
 or telemetry pipeline itself has stopped. The derived gauge deliberately avoids
 per-code series that Prometheus may retain briefly after a state change. This
-repository does not create a Vault alert rule; the metric source must be
-verified first.
+production alert rule is defined in `grafana/vault-health-alert.mjs` and can be
+published once with `GRAFANA_TOKEN_FILE=/path/to/owner-only-token node
+scripts/publish-vault-health-alert.mjs`.
+
+### Vault alert response
+
+`DropLeather Vault — Sealed or Unavailable` runs in the production
+`dependency-operational` group every 60 seconds, with a 2-minute pending
+period and `severity=critical`. It uses the existing `Owner` contact point.
+It alerts on codes 0, 501, 503, and other unusable codes; Vault's valid standby
+codes 429 and 473 do not trigger it. A missing metric produces an alert signal,
+and Grafana's No Data state is also set to Alerting. The observed code appears
+in the alert annotation; -1 means no recent metric. Check Vault's private
+health endpoint and the Railway probe deployment. If Vault is sealed, follow
+the manual 2-of-3 unseal procedure. Do not put unseal shares or tokens into
+Grafana. The probe's data may remain in the collector briefly if the probe
+itself stops; missing-data detection occurs after that cached series expires.
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/8TLSQD?referralCode=IFlm92)
 
