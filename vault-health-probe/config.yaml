@@ -1,0 +1,52 @@
+# Deploy this collector in the same Railway project/environment as Vault.
+# Railway private DNS cannot be reached from the separate Grafana project.
+receivers:
+  httpcheck/vault:
+    collection_interval: 15s
+    targets:
+      - endpoint: ${env:VAULT_HEALTH_URL}
+        method: GET
+        timeout: 5s
+
+processors:
+  resource/vault:
+    attributes:
+      - key: service.name
+        value: vault-health-probe
+        action: upsert
+      - key: deployment.environment
+        value: production
+        action: upsert
+  # The receiver emits a different label set for each HTTP code. A stable
+  # single-series gauge avoids old 200 series lingering after Vault seals.
+  transform/vault_status:
+    error_mode: propagate
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(value_int, attributes["http.status_code"]) where metric.name == "httpcheck.status" and value_int == 1
+      - context: metric
+        statements:
+          - aggregate_on_attributes("max", []) where name == "httpcheck.status"
+          - convert_sum_to_gauge() where name == "httpcheck.status"
+          - set(name, "vault_health_http_status_code") where name == "httpcheck.status"
+          - set(unit, "") where name == "vault_health_http_status_code"
+  batch:
+    timeout: 5s
+
+exporters:
+  otlphttp/central:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${env:OTEL_AUTHORIZATION}
+    timeout: 5s
+    sending_queue:
+      enabled: true
+      queue_size: 100
+
+service:
+  pipelines:
+    metrics:
+      receivers: [httpcheck/vault]
+      processors: [resource/vault, transform/vault_status, batch]
+      exporters: [otlphttp/central]

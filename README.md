@@ -1,5 +1,46 @@
 # Grafana Stack on Railway
 
+## Production Vault health signal
+
+Vault is in the `Dropleather | API` Railway project, while Prometheus and
+Grafana are in `Dropleather | Grafana`. Railway private networking is scoped to
+one project/environment, so Prometheus cannot scrape Vault directly. Deploy
+`vault-health-probe/` as a separate service named `vault-health-probe` in the
+API project's production environment, without a public domain. The official
+OpenTelemetry HTTP Check receiver polls Vault's unauthenticated health endpoint
+over Railway private networking and sends metrics through the existing
+authenticated OTLP collector at `https://otel.dropleather.com`. That collector
+already exposes API metrics to the Prometheus datasource `grafana_prometheus`.
+
+Required variables for the probe service:
+
+| Name | Value/source |
+|------|--------------|
+| `VAULT_HEALTH_URL` | `http://vault-dropleather.railway.internal:8200/v1/sys/health` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Existing authenticated collector URL, `https://otel.dropleather.com` |
+| `OTEL_AUTHORIZATION` | Existing OTLP `Authorization` header value; store as a Railway secret, never in Git |
+| `RAILWAY_DOCKERFILE_PATH` | `vault-health-probe/Dockerfile` when deploying from repository root |
+
+The probe does not require a Vault token or a public Vault route. Do not use
+`vault.dropleather.com` as its target: Cloudflare Access protects that hostname.
+The primary metric is `vault_health_http_status_code`, a stable gauge with no
+per-status-code labels. It is derived from the official HTTP Check receiver's
+`httpcheck.status` metric. Query it in Grafana:
+
+```promql
+vault_health_http_status_code{service_name="vault-health-probe"}
+absent_over_time(vault_health_http_status_code{service_name="vault-health-probe"}[2m])
+```
+
+Vault's health endpoint returns HTTP 200 for active/unsealed, 503 for sealed,
+and 501 for uninitialized. The gauge is 0 if Vault cannot be reached. The
+receiver also exports `httpcheck_error` and
+`httpcheck_duration_milliseconds` for diagnosis. An absent gauge means the probe
+or telemetry pipeline itself has stopped. The derived gauge deliberately avoids
+per-code series that Prometheus may retain briefly after a state change. This
+repository does not create a Vault alert rule; the metric source must be
+verified first.
+
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/8TLSQD?referralCode=IFlm92)
 
 ## What is this template
