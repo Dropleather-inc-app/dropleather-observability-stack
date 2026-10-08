@@ -30,9 +30,11 @@ zero for other outboxes' exhausted counts, so that aggregate is explicitly
 | WooCommerce polling and webhook jobs | QStash signed API consumers; polling enabled in production | Poll queue ratio and internal consumer HTTP outcomes |
 | Shopify order processing | Webhook → QStash signed API consumer | Internal consumer HTTP outcomes; no authoritative backlog gauge |
 | Stripe order processing | Webhook → QStash signed consumer, synchronous fallback | Internal consumer HTTP outcomes; no QStash-specific DLQ metric |
+| Seller analytics event processing | API publish → QStash signed consumer | Internal consumer HTTP outcomes; no authoritative backlog gauge |
 | Billing and payment reconciliation | QStash schedules plus Redis-locked API jobs and Supabase tracking | Internal endpoint HTTP outcomes, locked-job run/last-success, payment attempt sweep count |
 | Shopify retry/inventory, order expiry, dead-letter retry, VAT and retention/cleanup jobs | In-process timers with distributed Redis locks | Locked-job run/last-success metrics |
 | eBay timers | Disabled in production (`EBAY_ENABLED=false`) | Excluded; enabled eBay endpoint traffic can still appear in internal HTTP outcomes |
+| Etsy | API integration routes only; no registered background worker found | No empty worker panel |
 
 The canonical WooCommerce export and order-sync-v1 drains are disabled in the
 current production variables (`WC_EXPORT_ENGINE` defaults to `legacy-sync-v1`;
