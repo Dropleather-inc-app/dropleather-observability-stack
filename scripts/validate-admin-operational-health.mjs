@@ -7,7 +7,7 @@ const serialized = JSON.stringify([
 for (const forbidden of ['user_id', 'email', 'session_id', 'access_token', 'refresh_token', 'cookie', 'password']) {
   if (serialized.toLowerCase().includes(forbidden)) throw new Error(`Forbidden high-cardinality or secret field: ${forbidden}`)
 }
-if (dashboard.title !== 'DropLeather Admin — Operational Health') throw new Error('Unexpected dashboard title')
+if (dashboard.title !== 'Admin Operations') throw new Error('Unexpected dashboard title')
 if (dashboard.panels.some(panel => panel.fieldConfig?.defaults?.noValue === 'OK')) throw new Error('Missing data must not render as healthy')
 if (alerts.some(rule => {
   const settings = rule.notification_settings

@@ -59,8 +59,6 @@ export const queries = {
   statusBlocked: status('blocked', true),
   statusSuperseded: status('superseded'),
   statusHistorical: status('historical_exhausted'),
-  wooConnections: `max by(__name__) ({${service},__name__=~"woocommerce_integration_healthy|woocommerce_integration_waiting_for_signal|woocommerce_integration_dormant|woocommerce_integration_disconnected"})`,
-  wooUnresolved: `max(woocommerce_reconciliation_unresolved_exhausted{${service}})`,
   wooPollDepth: `max(poll_queue_depth_ratio{${service}})`,
   outboxFreshness: `time() - max by(outbox_type) (outbox_observation_timestamp_seconds{${outboxBase},outbox_type=~"domain_event|sync|order_status"})`,
   emailFreshness: `time() - max(${emailObserved})`,
@@ -97,11 +95,15 @@ const firingAlerts = {
 }
 
 export const dashboard = {
-  uid: 'dropleather-background-jobs', title: 'DropLeather — Background Jobs & Delivery',
-  tags: ['dropleather', 'production', 'background-jobs', 'operations'],
+  uid: 'dropleather-background-jobs', title: 'Background Jobs & Delivery',
+  tags: ['production', 'background-jobs'],
   timezone: 'browser', schemaVersion: 42, version: 1, refresh: '30s',
   time: { from: 'now-6h', to: 'now' },
-  links: [{ title: 'Production alerts', type: 'link', url: '/alerting/list?view=list', targetBlank: true }],
+  links: [
+    { title: 'API & Platform Health', type: 'link', url: '/d/ou85rg7', targetBlank: false },
+    { title: 'Integrations Health', type: 'link', url: '/d/integrations-operational-health', targetBlank: false },
+    { title: 'Production alerts', type: 'link', url: '/alerting/list?view=list', targetBlank: true },
+  ],
   panels: [
     row(1, 'Global async health — actionable work only', 0),
     stat(2, 'Actionable backlog', 0, 1, 5, queries.globalBacklog),
@@ -135,9 +137,7 @@ export const dashboard = {
     line(65, 'Current exhausted by reason', 0, 66, 12, queries.statusExhausted, '{{reason}}'),
     line(66, 'Connection-blocked by reason', 12, 66, 12, queries.statusBlocked, '{{reason}}'),
     row(70, 'Marketplace workers — enabled integrations only', 73),
-    line(71, 'WooCommerce connection state', 0, 74, 12, queries.wooConnections, '{{__name__}}'),
-    stat(72, 'WooCommerce unresolved exhausted', 12, 74, 6, queries.wooUnresolved),
-    stat(73, 'WooCommerce polling queue ratio', 18, 74, 6, queries.wooPollDepth, 'percentunit'),
+    stat(73, 'WooCommerce polling queue ratio', 0, 74, 12, queries.wooPollDepth, 'percentunit'),
     row(80, 'Worker execution / observation freshness', 81),
     line(81, 'Scheduled cron last success age', 0, 82, 12, queries.cronLastSuccessAge, '{{task_name}}', 's'),
     line(82, 'Scheduled cron runs — 1h', 12, 82, 12, queries.cronRuns, '{{task_name}} · {{outcome}}'),

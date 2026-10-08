@@ -19,7 +19,7 @@ async function grafana(path, init = {}) {
 
 const folderUid = 'cfwrpuv46m39ca'
 const folder = await grafana(`/api/folders/${folderUid}`)
-if (folder.title !== 'DropLeather API') throw new Error('Production API folder mismatch')
+if (folder.title !== 'DropLeather') throw new Error('Production folder mismatch')
 const existing = await grafana('/api/search?type=dash-db')
 if (existing.some(item => item.title === dashboard.title && item.uid !== dashboard.uid)) {
   throw new Error('A dashboard with this title already exists under a different UID')

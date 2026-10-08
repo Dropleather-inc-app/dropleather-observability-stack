@@ -1,15 +1,70 @@
 # Grafana Stack on Railway
 
+## Canonical production dashboards
+
+The six dashboards below live together in the `DropLeather` Grafana folder.
+They retain their existing UIDs and alert links. Dashboard definitions are
+versioned in `grafana/dashboards/*.json` (API, auth, database, integrations)
+and the existing `grafana/*dashboard*.mjs` modules (admin, background jobs).
+Publish with `scripts/publish-production-dashboards.mjs`; Grafana does not
+provision these dashboards on startup. This command updates existing UIDs only
+and does not change alert rules or contact points.
+
+| Dashboard | Canonical responsibility | Prometheus source |
+|---|---|---|
+| API & Platform Health | API RED, `/health` and `/ready` response counters, external synthetic probe, Supabase/Redis operations, Vault health | `grafana_prometheus`; synthetic probe in `efwrmge632nswe` |
+| Authentication & Security | Login, signup, Google OAuth, recovery, sessions, identity/security outcomes | `grafana_prometheus` |
+| Admin Operations | Admin BFF availability, auth/session checks, API/Redis connectivity, denials, deployment health | `grafana_prometheus` |
+| Data & Database Health | Supabase PostgreSQL and PgBouncer capacity, connections, data disk, queries, replication | `efwrmge632nswe` |
+| Integrations Health | WooCommerce provider connection state/recovery and Stripe provider operations | `grafana_prometheus` |
+| Background Jobs & Delivery | Outboxes, QStash delivery, order email, retries, worker execution and freshness | `grafana_prometheus` |
+
+The API dashboard's `Vault health HTTP code` panel uses
+`vault_health_http_status_code{service_name="vault-health-probe"}`. Status 200 is
+active/unsealed, 503 sealed, 501 uninitialized, and 0 unreachable; the existing
+`DropLeather Vault — Sealed or Unavailable` rule remains the alert owner.
+The API synthetic probe is deliberately sourced from Grafana Cloud Prometheus,
+where its `probe_success` series is live. The API's `/health` and `/ready`
+request counters describe observed traffic; they are not substitutes for an
+external availability probe. The database dashboard retains the existing
+production Supabase variables and removes template-only rows and absent
+`supavisor_connections_active` data. A no-traffic ratio in Auth is labeled
+`NO COMPLETED FLOW` rather than shown as a successful zero.
+
+Provider connectivity belongs to Integrations Health. Actionable, blocked,
+superseded, and historical work remain separate in Background Jobs & Delivery.
+The old eBay workflow dashboard contained no live operational series while
+eBay is disabled in production; no eBay panel is presented as healthy. Shopify
+currently lacks a verified provider-specific Prometheus series. Navigate to
+related dashboards using the links in each dashboard header.
+Admin Operations has BFF telemetry and a telemetry-missing alert, but no
+independent browser/Cloudflare Access probe; its ingestion heartbeat is not a
+claim that the public frontend is reachable.
+
+Existing alert groups are unchanged: API and dependency alerts belong with
+API & Platform Health; auth alerts with Authentication & Security; admin BFF
+alerts with Admin Operations; Supabase capacity alerts with Data & Database
+Health; Stripe provider alerts with Integrations Health; outbox and order-email
+alerts with Background Jobs & Delivery. The QStash order-email DLQ and Resend
+inbox delivery/bounces still have no authoritative Prometheus series.
+
+Validate the six definitions before publishing:
+
+```sh
+node scripts/validate-production-dashboards.mjs
+GRAFANA_TOKEN_FILE=/path/to/owner-only-token node scripts/publish-production-dashboards.mjs
+```
+
 ## Background jobs and delivery dashboard
 
 `grafana/background-jobs-dashboard.mjs` defines the production dashboard
-**DropLeather — Background Jobs & Delivery** in the `DropLeather API` folder.
+**Background Jobs & Delivery** in the `DropLeather` folder.
 It uses `grafana_prometheus` and is published through the Grafana API (the
 repository does not provision dashboards on Grafana startup):
 
 ```sh
-node scripts/validate-background-jobs-dashboard.mjs
-GRAFANA_TOKEN_FILE=/path/to/owner-only-token node scripts/publish-background-jobs-dashboard.mjs
+node scripts/validate-production-dashboards.mjs
+GRAFANA_TOKEN_FILE=/path/to/owner-only-token node scripts/publish-production-dashboards.mjs
 ```
 
 The dashboard selects the newest lease-owner database observation and rejects
@@ -26,7 +81,7 @@ zero for other outboxes' exhausted counts, so that aggregate is explicitly
 | Order email | 15-second API sweep, Supabase outbox, QStash signed consumer, Resend | Pending/age/failure gauges, publish/send/signature counters, consumer HTTP outcomes |
 | Order status | Supabase transactional outbox, Realtime wake, 60-second locked sweep | Runnable, blocked, superseded, current/historical exhausted classifications |
 | Domain events | Supabase outbox, Realtime wake, 15-second locked sweep | Pending/age, observation freshness, dispatch outcomes |
-| Sync / WooCommerce legacy export and recovery | Supabase sync and recovery outboxes; leased drain | Sync pending/age and WooCommerce connection/recovery gauges |
+| Sync / WooCommerce legacy export and recovery | Supabase sync and recovery outboxes; leased drain | Sync pending/age, recovery failure aggregate, and polling queue ratio |
 | WooCommerce polling and webhook jobs | QStash signed API consumers; polling enabled in production | Poll queue ratio and internal consumer HTTP outcomes |
 | Shopify order processing | Webhook → QStash signed API consumer | Internal consumer HTTP outcomes; no authoritative backlog gauge |
 | Stripe order processing | Webhook → QStash signed consumer, synchronous fallback | Internal consumer HTTP outcomes; no QStash-specific DLQ metric |
@@ -122,7 +177,7 @@ itself stops; missing-data detection occurs after that cached series expires.
 ## Production order-email alerts
 
 Four rules in `grafana/order-email-alerts.mjs` monitor the Supabase outbox →
-QStash → signed Railway API → Resend path. They run in the `DropLeather API`
+QStash → signed Railway API → Resend path. They run in the `DropLeather`
 folder's `order-email-operational` group every 60 seconds, route to the
 existing `Owner` contact point, and use `Error` on query errors and `Alerting`
 on No Data. Publish missing rules with an owner-only Grafana API token file:

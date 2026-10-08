@@ -1,6 +1,6 @@
 import { dashboard, queries } from '../grafana/background-jobs-dashboard.mjs'
 
-if (dashboard.title !== 'DropLeather — Background Jobs & Delivery') throw new Error('Unexpected dashboard title')
+if (dashboard.title !== 'Background Jobs & Delivery') throw new Error('Unexpected dashboard title')
 if (dashboard.uid !== 'dropleather-background-jobs') throw new Error('Unexpected dashboard UID')
 const panels = dashboard.panels.filter(panel => panel.type !== 'row')
 const metricPanels = panels.filter(panel => panel.type !== 'alertlist')

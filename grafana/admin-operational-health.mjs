@@ -29,12 +29,13 @@ function row(id, title, y) {
 
 export const dashboard = {
   uid: dashboardUid,
-  title: 'DropLeather Admin — Operational Health',
-  tags: ['dropleather', 'admin', 'production', 'operations'],
+  title: 'Admin Operations',
+  tags: ['production', 'admin'],
   timezone: 'browser', schemaVersion: 42, version: 1, refresh: '30s',
   time: { from: 'now-6h', to: 'now' },
   timepicker: { refresh_intervals: ['10s', '30s', '1m', '5m', '15m'] },
   links: [
+    { title: 'Authentication & Security', type: 'link', url: '/d/dropleather-auth', targetBlank: false },
     { title: 'Admin Sentry issues', type: 'link', url: 'https://dropleather-inc.sentry.io/issues/?project=4510771954253824&query=environment%3Aproduction', targetBlank: true },
     { title: 'Admin Railway service', type: 'link', url: 'https://railway.com/project/b208f0a2-a2d7-4441-84c0-ceedce23dae8', targetBlank: true },
   ],
@@ -45,7 +46,7 @@ export const dashboard = {
       thresholds: { mode: 'absolute', steps: [{ color: 'red' }, { color: 'green', value: 1 }] },
     }),
     stat(3, 'BFF requests — last 15m', 6, 1, 'sum(increase(admin_http_request_total{service_name="dropleather-admin"}[15m]))', 'short'),
-    stat(4, 'Unexpected failures — last 15m', 12, 1, 'sum(increase(admin_auth_outcome_total{service_name="dropleather-admin",outcome_class="unexpected_failure"}[15m]))', 'short', {
+    stat(4, 'Unexpected failures — last 15m', 12, 1, '(sum(increase(admin_auth_outcome_total{service_name="dropleather-admin",outcome_class="unexpected_failure"}[15m]))) or on() vector(0)', 'short', {
       thresholds: { mode: 'absolute', steps: [{ color: 'green' }, { color: 'amber', value: 1 }, { color: 'red', value: 3 }] },
     }),
     stat(5, 'Process uptime', 18, 1, 'time() - max(admin_process_start_time_seconds{service_name="dropleather-admin"})', 's'),
@@ -54,15 +55,15 @@ export const dashboard = {
 
     row(10, 'Authentication and session', 14),
     timeseries(11, 'Authentication outcomes', 0, 15, 12, 'sum by (operation, outcome, outcome_class) (increase(admin_auth_outcome_total{service_name="dropleather-admin"}[$__rate_interval]))', '{{operation}} · {{outcome}} · {{outcome_class}}'),
-    timeseries(12, 'Session clearing — definitive reasons only', 12, 15, 12, 'sum by (reason) (increase(admin_session_clear_total{service_name="dropleather-admin"}[$__rate_interval]))', '{{reason}}'),
+    timeseries(12, 'Session clearing — definitive reasons only', 12, 15, 12, '(sum by (reason) (increase(admin_session_clear_total{service_name="dropleather-admin"}[$__rate_interval]))) or on() vector(0)', '{{reason}}'),
 
     row(20, 'Dependencies', 23),
     timeseries(21, 'API and Redis outcomes', 0, 24, 12, 'sum by (dependency, operation, outcome) (increase(admin_dependency_operation_total{service_name="dropleather-admin"}[$__rate_interval]))', '{{dependency}} · {{operation}} · {{outcome}}'),
     timeseries(22, 'Dependency p95 latency', 12, 24, 12, 'histogram_quantile(0.95, sum by (le, dependency, operation) (rate(admin_dependency_operation_duration_milliseconds_bucket{service_name="dropleather-admin"}[5m])))', '{{dependency}} · {{operation}}', 'ms'),
 
     row(30, 'Security denials — expected denials are separate from failures', 32),
-    timeseries(31, 'Security denials', 0, 33, 12, 'sum by (layer, reason) (increase(admin_security_denial_total{service_name="dropleather-admin"}[$__rate_interval]))', '{{layer}} · {{reason}}'),
-    timeseries(32, 'Login rate-limit decisions', 12, 33, 12, 'sum by (decision) (increase(admin_rate_limit_decision_total{service_name="dropleather-admin"}[$__rate_interval]))', '{{decision}}'),
+    timeseries(31, 'Security denials', 0, 33, 12, '(sum by (layer, reason) (increase(admin_security_denial_total{service_name="dropleather-admin"}[$__rate_interval]))) or on() vector(0)', '{{layer}} · {{reason}}'),
+    timeseries(32, 'Login rate-limit decisions', 12, 33, 12, '(sum by (decision) (increase(admin_rate_limit_decision_total{service_name="dropleather-admin"}[$__rate_interval]))) or on() vector(0)', '{{decision}}'),
 
     row(40, 'Deployment health', 41),
     timeseries(41, 'Process start timestamp (changes indicate restarts/releases)', 0, 42, 12, 'max by (service_version) (admin_process_start_time_seconds{service_name="dropleather-admin"})', '{{service_version}}', 'dateTimeAsIso'),
