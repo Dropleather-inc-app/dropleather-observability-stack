@@ -17,7 +17,8 @@ const signature = `order_email_qstash_signature_failure_total{${service}}`
 // Telemetry loss has its own alert below; it is not an email-send failure.
 export const sendFailureQuery = `(sum(increase(${retryable}[10m])) or vector(0))`
 export const signatureFailureQuery = `(sum(increase(${signature}[5m])) or on() (sum(${signature}) * 0))`
-export const metricsMissingQuery = `(((max(up{job="dropleather-api"}) == bool 1) * on() (absent_over_time(${retryable}[5m]) or on() vector(0))) or vector(0))`
+const apiLive = `http_server_active_requests{${service}}`
+export const metricsMissingQuery = `(((max(up{job="dropleather-api"}) == bool 1) * on() (count(${apiLive}) > bool 0) * on() (absent_over_time(${retryable}[5m]) or on() vector(0))) or vector(0))`
 
 function prometheusQuery(refId, expr) {
   return {

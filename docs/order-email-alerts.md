@@ -14,8 +14,9 @@ provider-send failures in ten minutes, with a five-minute pending period.
 No email traffic evaluates to zero. No Data cannot create a high-severity
 send-failure incident; query errors remain errors.
 
-The separate **Metrics Missing** warning checks that the API Prometheus
-scrape is healthy while the registered retryable-failure counter has been
+The separate **Metrics Missing** warning checks that the Prometheus scrape
+and the API's own HTTP instrumentation are present while the registered
+retryable-failure counter has been
 absent for five minutes. It has an additional five-minute pending period.
 This warning means order-email telemetry is missing; it does not establish
 that customer email delivery is failing. Investigate metric registration,
