@@ -5,7 +5,8 @@ const recentCode = `last_over_time(${metric}[1m])`
 // Standby (429) and performance standby (473) are valid Vault health states.
 // All other non-200 codes are unusable for this single-node production Vault.
 export const observedCodeQuery = `max(${recentCode}) or on() vector(-1)`
-export const failureQuery = `max((${recentCode} != bool 200) * (${recentCode} != bool 429) * (${recentCode} != bool 473)) or on() vector(1)`
+export const failureQuery = `max((${recentCode} != bool 200) * (${recentCode} != bool 429) * (${recentCode} != bool 473)) or on() vector(0)`
+export const telemetryMissingQuery = `absent_over_time(${metric}[2m]) or on() vector(0)`
 
 function query(refId, expr) {
   return {
@@ -60,7 +61,7 @@ export const vaultHealthAlert = {
       },
     },
   ],
-  noDataState: 'Alerting',
+  noDataState: 'OK',
   execErrState: 'Error',
   for: '2m',
   keep_firing_for: '5m',
@@ -78,4 +79,28 @@ export const vaultHealthAlert = {
   },
   notification_settings: { receiver: 'Owner' },
   isPaused: false,
+}
+
+export const vaultTelemetryMissingAlert = {
+  ...vaultHealthAlert,
+  uid: 'vault-telemetry-missing',
+  title: 'DropLeather Vault — Telemetry Missing',
+  data: [query('A', telemetryMissingQuery), {
+    ...vaultHealthAlert.data[2],
+    model: {
+      ...vaultHealthAlert.data[2].model,
+      expression: 'A',
+    },
+  }],
+  condition: 'C',
+  for: '5m',
+  keep_firing_for: '5m',
+  annotations: {
+    summary: 'Production Vault health telemetry is missing',
+    description: 'The Vault health probe metric has been absent for at least two minutes. This does not prove Vault is sealed. Check the probe, exporter, Prometheus ingestion, and datasource separately from Vault seal status.',
+  },
+  labels: {
+    ...vaultHealthAlert.labels,
+    severity: 'warning',
+  },
 }
