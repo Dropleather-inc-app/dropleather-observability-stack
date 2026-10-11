@@ -7,6 +7,20 @@ receivers:
       - endpoint: ${env:VAULT_HEALTH_URL}
         method: GET
         timeout: 5s
+        tls:
+          ca_file: /etc/otelcol-contrib/vault-ca.pem
+  prometheus/vault:
+    config:
+      scrape_configs:
+        - job_name: vault-private
+          scrape_interval: 15s
+          metrics_path: /v1/sys/metrics
+          scheme: https
+          static_configs:
+            - targets: [vault-dropleather.railway.internal:8200]
+          tls_config:
+            ca_file: /etc/otelcol-contrib/vault-ca.pem
+            server_name: vault-dropleather.railway.internal
 
 processors:
   resource/vault:
@@ -47,6 +61,6 @@ exporters:
 service:
   pipelines:
     metrics:
-      receivers: [httpcheck/vault]
+      receivers: [httpcheck/vault, prometheus/vault]
       processors: [resource/vault, transform/vault_status, batch]
       exporters: [otlphttp/central]
