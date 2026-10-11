@@ -134,13 +134,21 @@ Required variables for the probe service:
 
 | Name | Value/source |
 |------|--------------|
-| `VAULT_HEALTH_URL` | `http://vault-dropleather.railway.internal:8200/v1/sys/health` |
+| `VAULT_HEALTH_URL` | Set to `https://vault-dropleather.railway.internal:8200/v1/sys/health` only after the verified Vault HTTPS cutover. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Existing authenticated collector URL, `https://otel.dropleather.com` |
 | `OTEL_AUTHORIZATION` | Existing OTLP `Authorization` header value; store as a Railway secret, never in Git |
 | `RAILWAY_DOCKERFILE_PATH` | `vault-health-probe/Dockerfile` when deploying from repository root |
 
 The probe does not require a Vault token or a public Vault route. Do not use
 `vault.dropleather.com` as its target: Cloudflare Access protects that hostname.
+The prepared image carries only the Vault private CA public certificate. Its
+HTTP health check and Prometheus receiver verify the Vault certificate and
+private hostname; neither disables TLS verification. The Prometheus receiver
+scrapes `/v1/sys/metrics` on the same private endpoint after the Vault listener
+enables unauthenticated metrics access. Do not deploy this probe update while
+the live Vault listener is still HTTP. The metrics endpoint remains reachable
+only inside the production Railway environment or through Access-protected
+human administration.
 The primary metric is `vault_health_http_status_code`, a stable gauge with no
 per-status-code labels. It is derived from the official HTTP Check receiver's
 `httpcheck.status` metric. Query it in Grafana:
