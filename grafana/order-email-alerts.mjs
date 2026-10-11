@@ -13,10 +13,12 @@ export const failedQuery = `sum(${failed} and on(host_name,process_pid) ${newest
 
 const retryable = `order_email_send_total{${service},outcome="retryable_failure"}`
 const signature = `order_email_qstash_signature_failure_total{${service}}`
-// A single newly started counter sample yields zero; a wholly missing series
-// still yields No Data, which Grafana treats as Alerting for these rules.
-export const sendFailureQuery = `(sum(increase(${retryable}[10m])) or on() (sum(${retryable}) * 0))`
+// A newly started counter and a wholly absent counter both evaluate to zero.
+// Telemetry loss has its own alert below; it is not an email-send failure.
+export const sendFailureQuery = `(sum(increase(${retryable}[10m])) or vector(0))`
 export const signatureFailureQuery = `(sum(increase(${signature}[5m])) or on() (sum(${signature}) * 0))`
+const apiLive = `http_server_active_requests{${service}}`
+export const metricsMissingQuery = `(((max(up{job="dropleather-api"}) == bool 1) * on() (count(${apiLive}) > bool 0) * on() (absent_over_time(${retryable}[5m]) or on() vector(0))) or vector(0))`
 
 function prometheusQuery(refId, expr) {
   return {
@@ -47,18 +49,19 @@ function threshold(refId, expression, value) {
 }
 
 function rule({ uid, title, query, thresholdValue, duration, severity,
-  summary, description, booleanThreshold = false }) {
+  summary, description, booleanThreshold = false, noDataState = 'Alerting',
+  component = 'order_email' }) {
   const data = [prometheusQuery('A', query)]
   if (booleanThreshold) data.push(prometheusQuery('B', `(${query}) >= bool ${thresholdValue}`))
   data.push(threshold('C', booleanThreshold ? 'B' : 'A', booleanThreshold ? 0.5 : thresholdValue))
   return {
     uid, orgID: 1, folderUID: 'cfwrpuv46m39ca',
     ruleGroup: 'order-email-operational', title, condition: 'C', data,
-    noDataState: 'Alerting', execErrState: 'Error', for: duration,
+    noDataState, execErrState: 'Error', for: duration,
     keep_firing_for: '5m',
     annotations: { summary, description, observed_value: '{{ $values.A.Value }}' },
     labels: {
-      component: 'order_email', environment: 'production',
+      component, environment: 'production',
       service: 'dropleather-api-railway-candidate', severity,
     },
     notification_settings: { receiver: 'Owner' }, isPaused: false,
@@ -81,9 +84,17 @@ export const orderEmailAlerts = [
   rule({
     uid: 'order-email-send-failures', title: 'DropLeather Order Email — Sustained Send Failures',
     query: sendFailureQuery, thresholdValue: 3, booleanThreshold: true,
-    duration: '5m', severity: 'high',
+    duration: '5m', severity: 'high', noDataState: 'OK',
     summary: 'Three or more retryable order-email sends failed within 10 minutes',
     description: 'Check Resend availability, rate limits, Railway API logs, and QStash retries. One isolated provider failure does not trigger this alert. A Resend API acceptance is not proof of inbox delivery.',
+  }),
+  rule({
+    uid: 'order-email-metrics-missing', title: 'DropLeather Order Email — Metrics Missing',
+    query: metricsMissingQuery, thresholdValue: 0.5,
+    duration: '5m', severity: 'warning', noDataState: 'OK',
+    component: 'order_email_telemetry',
+    summary: 'Order-email instrumentation is missing while the API scrape is healthy',
+    description: 'Order-email telemetry is missing. This does NOT by itself mean customer emails are failing. Check deployed instrumentation, metric registration, Prometheus labels, and scrape output.',
   }),
   rule({
     uid: 'order-email-invalid-signatures', title: 'DropLeather Order Email — Invalid QStash Signatures',

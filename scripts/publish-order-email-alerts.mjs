@@ -34,6 +34,14 @@ for (const rule of orderEmailAlerts) {
     if (matches.length !== 1 || matches[0].uid !== rule.uid || matches[0].title !== rule.title) {
       throw new Error(`Conflicting existing alert for ${rule.uid}`)
     }
+    if (['order-email-send-failures', 'order-email-metrics-missing'].includes(rule.uid)) {
+      const updated = await grafana(`/api/v1/provisioning/alert-rules/${rule.uid}`, {
+        method: 'PUT', headers: { 'X-Disable-Provenance': 'true' },
+        body: JSON.stringify(rule),
+      })
+      console.log(JSON.stringify({ uid: updated.uid, status: 'updated' }))
+      continue
+    }
     console.log(JSON.stringify({ uid: rule.uid, status: 'already-exists' }))
     continue
   }
